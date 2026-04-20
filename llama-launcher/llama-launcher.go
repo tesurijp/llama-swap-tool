@@ -22,6 +22,7 @@ var (
 	swapProcess  *os.Process
 	proxyProcess *os.Process
 	targetUrl    string
+	configPath   string
 	logFile      *os.File
 	//go:embed llamaswap.ico
 	iconData []byte
@@ -32,7 +33,14 @@ func main() {
 	listenStr := chkflg.String("listen", "", "listen ip/port")
 	certFile := chkflg.String("tls-cert-file", "", "TLS certificate file")
 	keyFile := chkflg.String("tls-key-file", "", "TLS key file")
+	configFile := chkflg.String("config", "", "config file path")
 	chkflg.Parse(os.Args[1:])
+
+	configPath = *configFile
+	if configPath == "" {
+		exePath, _ := os.Executable()
+		configPath = filepath.Join(filepath.Dir(exePath), "config.yaml")
+	}
 
 	var useTLS = (*certFile != "" && *keyFile != "")
 	// Set default ports.
@@ -59,6 +67,7 @@ func onReady() {
 
 	mOpenWeb := systray.AddMenuItem("Open Web UI", "Open llama-swap playground")
 	mOpenLog := systray.AddMenuItem("Open log file", "Open ol-proxy log")
+	mOpenConfig := systray.AddMenuItem("Open config file", "Open config file")
 	mRestart := systray.AddMenuItem("Restart", "Restart llama-swap & proxy")
 	mTerminateChild := systray.AddMenuItem("Exit", "Ext")
 
@@ -69,6 +78,8 @@ func onReady() {
 				open(targetUrl)
 			case <-mOpenLog.ClickedCh:
 				open(logFile.Name())
+			case <-mOpenConfig.ClickedCh:
+				open(configPath)
 			case <-mRestart.ClickedCh:
 				restartChildProcess()
 			case <-mTerminateChild.ClickedCh:
