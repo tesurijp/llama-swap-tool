@@ -137,10 +137,24 @@ func handleUpstreamError(w http.ResponseWriter, resp *http.Response) bool {
 			debugf("failed to read upstream error body: %v", err)
 			respBody = []byte("")
 		}
-		// Explicitly close here as well for good measure when we return true
 		resp.Body.Close()
 		debugf("upstream error body: %s", string(respBody))
-		http.Error(w, fmt.Sprintf("upstream error: %d %s", resp.StatusCode, strings.TrimSpace(string(respBody))), resp.StatusCode)
+
+		// Try to extract message from OpenAI error JSON
+		var openAIError struct {
+			Error struct {
+				Message string `json:"message"`
+			} `json:"error"`
+		}
+		errorMessage := strings.TrimSpace(string(respBody))
+		if err := json.Unmarshal(respBody, &openAIError); err == nil && openAIError.Error.Message != "" {
+			errorMessage = openAIError.Error.Message
+		}
+
+		// Return in Ollama compatible format: {"error": "message"}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(resp.StatusCode)
+		json.NewEncoder(w).Encode(map[string]string{"error": errorMessage})
 		return true
 	}
 	return false
