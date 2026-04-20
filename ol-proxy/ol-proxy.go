@@ -248,34 +248,7 @@ func streamLoop(w http.ResponseWriter, model string, resp *http.Response, builde
 	}
 
 	var mu sync.Mutex
-
 	reader := bufio.NewReader(resp.Body)
-	ticker := time.NewTicker(heartbeatInterval)
-	defer ticker.Stop()
-
-	done := make(chan struct{})
-	var closeOnce sync.Once
-	closeDone := func() {
-		closeOnce.Do(func() { close(done) })
-	}
-	defer closeDone()
-
-	go func() {
-		for {
-			select {
-			case <-ticker.C:
-				mu.Lock()
-				w.Write([]byte("\n"))
-				flusher.Flush()
-				mu.Unlock()
-			case <-done:
-				return
-			case <-ctx.Done():
-				debugf("stream heartbeat goroutine context done for model %s", model)
-				return
-			}
-		}
-	}()
 
 	for {
 		select {
@@ -289,8 +262,11 @@ func streamLoop(w http.ResponseWriter, model string, resp *http.Response, builde
 		if err != nil {
 			if err != io.EOF {
 				debugf("stream read error: %v", err)
+				mu.Lock()
+				json.NewEncoder(w).Encode(map[string]string{"error": err.Error()})
+				flusher.Flush()
+				mu.Unlock()
 			}
-			// If we got EOF, check if we should send a final [DONE] if not already sent
 			break
 		}
 
@@ -319,6 +295,10 @@ func streamLoop(w http.ResponseWriter, model string, resp *http.Response, builde
 		var chunk StreamChunk
 		if err := json.Unmarshal([]byte(data), &chunk); err != nil {
 			debugf("stream parse error: %v", err)
+			mu.Lock()
+			json.NewEncoder(w).Encode(map[string]string{"error": "parse error: " + err.Error()})
+			flusher.Flush()
+			mu.Unlock()
 			continue
 		}
 
