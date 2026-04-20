@@ -94,8 +94,10 @@ type EmbeddingRequest struct {
 }
 
 type EmbeddingResponse struct {
-	Embeddings []struct {
+	Model string `json:"model"`
+	Data  []struct {
 		Embedding []float32 `json:"embedding"`
+		Index     int       `json:"index"`
 	} `json:"data"`
 }
 
@@ -469,7 +471,9 @@ func embedHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Send request to upstream /v1/embeddings
+	// Prepare request for upstream /v1/embeddings
+	// Ollama request format and OpenAI format for 'model' and 'input' are similar.
+	// We can reuse clientBody or re-marshal if we want to be safe.
 	upstreamURL := cfg.UpstreamURL + upstreamEmbeddingsEndpoint
 	httpReq, err := http.NewRequest("POST", upstreamURL, bytes.NewBuffer(clientBody))
 	if err != nil {
@@ -497,8 +501,27 @@ func embedHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	debugf("client response /api/embed: %s", string(respBody))
-	w.Write(respBody)
+	var openAIResp EmbeddingResponse
+	if err := json.Unmarshal(respBody, &openAIResp); err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// Convert OpenAI response to Ollama format: {"model": "...", "embeddings": [[...], [...]]}
+	ollamaEmbeds := make([][]float32, len(openAIResp.Data))
+	for _, item := range openAIResp.Data {
+		if item.Index < len(ollamaEmbeds) {
+			ollamaEmbeds[item.Index] = item.Embedding
+		}
+	}
+
+	clientResp := map[string]interface{}{
+		"model":      embedReq.Model,
+		"embeddings": ollamaEmbeds,
+	}
+
+	debugf("client response /api/embed: %v", clientResp)
+	json.NewEncoder(w).Encode(clientResp)
 }
 
 // ===== Main =====
