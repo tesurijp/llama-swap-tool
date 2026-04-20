@@ -57,16 +57,56 @@ type Message struct {
 	Content string `json:"content"`
 }
 
+type Options struct {
+	Temperature      *float32    `json:"temperature,omitempty"`
+	Seed             *int        `json:"seed,omitempty"`
+	TopP             *float32    `json:"top_p,omitempty"`
+	TopK             *int        `json:"top_k,omitempty"`
+	NumPredict       *int        `json:"num_predict,omitempty"`
+	Stop             interface{} `json:"stop,omitempty"` // Can be string or []string
+	PresencePenalty  *float32    `json:"presence_penalty,omitempty"`
+	FrequencyPenalty *float32    `json:"frequency_penalty,omitempty"`
+}
+
 type ChatRequest struct {
-	Model    string    `json:"model"`
-	Messages []Message `json:"messages"`
-	Stream   bool      `json:"stream"`
+	Model     string    `json:"model"`
+	Messages  []Message `json:"messages"`
+	Stream    bool      `json:"stream"`
+	System    string    `json:"system,omitempty"`
+	Format    string    `json:"format,omitempty"`
+	Options   Options   `json:"options,omitempty"`
+	KeepAlive string    `json:"keep_alive,omitempty"`
 }
 
 type GenerateRequest struct {
-	Model  string `json:"model"`
-	Prompt string `json:"prompt"`
-	Stream bool   `json:"stream"`
+	Model     string  `json:"model"`
+	Prompt    string  `json:"prompt"`
+	System    string  `json:"system,omitempty"`
+	Template  string  `json:"template,omitempty"`
+	Context   []int   `json:"context,omitempty"`
+	Stream    bool    `json:"stream"`
+	Raw       bool    `json:"raw,omitempty"`
+	Format    string  `json:"format,omitempty"`
+	Options   Options `json:"options,omitempty"`
+	KeepAlive string  `json:"keep_alive,omitempty"`
+}
+
+type OpenAIChatRequest struct {
+	Model            string           `json:"model"`
+	Messages         []Message        `json:"messages"`
+	Stream           bool             `json:"stream"`
+	Temperature      *float32         `json:"temperature,omitempty"`
+	Seed             *int             `json:"seed,omitempty"`
+	TopP             *float32         `json:"top_p,omitempty"`
+	MaxTokens        *int             `json:"max_tokens,omitempty"`
+	Stop             interface{}      `json:"stop,omitempty"`
+	PresencePenalty  *float32         `json:"presence_penalty,omitempty"`
+	FrequencyPenalty *float32         `json:"frequency_penalty,omitempty"`
+	ResponseFormat   *ResponseFormat  `json:"response_format,omitempty"`
+}
+
+type ResponseFormat struct {
+	Type string `json:"type"`
 }
 
 type StreamChunk struct {
@@ -102,7 +142,7 @@ type EmbeddingResponse struct {
 }
 
 // Callback function types
-type parserFunc func([]byte) (*ChatRequest, error)
+type parserFunc func([]byte) (*OpenAIChatRequest, string, bool, error)
 type respBuilderFunc func(string) map[string]interface{}
 type streamBuilderFunc func(content string, done bool) map[string]interface{}
 
@@ -312,26 +352,53 @@ func sendUpstreamRequest(endpoint string, reqBody []byte) (*http.Response, error
 
 // ===== Request Parsers =====
 
-// parseChatRequest converts ChatRequest bytes to ChatRequest
-func parseChatRequest(data []byte) (*ChatRequest, error) {
-	var req ChatRequest
-	err := json.Unmarshal(data, &req)
-	return &req, err
+// convertToOpenAI converts Ollama-style options and parameters to OpenAI-style
+func convertToOpenAI(model string, messages []Message, system string, format string, options Options, stream bool) *OpenAIChatRequest {
+	var finalMessages []Message
+	if system != "" {
+		finalMessages = append(finalMessages, Message{Role: "system", Content: system})
+	}
+	finalMessages = append(finalMessages, messages...)
+
+	req := &OpenAIChatRequest{
+		Model:            model,
+		Messages:         finalMessages,
+		Stream:           stream,
+		Temperature:      options.Temperature,
+		Seed:             options.Seed,
+		TopP:             options.TopP,
+		MaxTokens:        options.NumPredict,
+		Stop:             options.Stop,
+		PresencePenalty:  options.PresencePenalty,
+		FrequencyPenalty: options.FrequencyPenalty,
+	}
+
+	if format == "json" {
+		req.ResponseFormat = &ResponseFormat{Type: "json_object"}
+	}
+
+	return req
 }
 
-// parseGenerateRequest converts GenerateRequest bytes to ChatRequest
-func parseGenerateRequest(data []byte) (*ChatRequest, error) {
+// parseChatRequest converts ChatRequest bytes to OpenAIChatRequest
+func parseChatRequest(data []byte) (*OpenAIChatRequest, string, bool, error) {
+	var req ChatRequest
+	if err := json.Unmarshal(data, &req); err != nil {
+		return nil, "", false, err
+	}
+	return convertToOpenAI(req.Model, req.Messages, req.System, req.Format, req.Options, req.Stream), req.Model, req.Stream, nil
+}
+
+// parseGenerateRequest converts GenerateRequest bytes to OpenAIChatRequest
+func parseGenerateRequest(data []byte) (*OpenAIChatRequest, string, bool, error) {
 	var req GenerateRequest
 	if err := json.Unmarshal(data, &req); err != nil {
-		return nil, err
+		return nil, "", false, err
 	}
-	return &ChatRequest{
-		Model: req.Model,
-		Messages: []Message{
-			{Role: "user", Content: req.Prompt},
-		},
-		Stream: req.Stream,
-	}, nil
+	messages := []Message{
+		{Role: "user", Content: req.Prompt},
+	}
+	return convertToOpenAI(req.Model, messages, req.System, req.Format, req.Options, req.Stream), req.Model, req.Stream, nil
 }
 
 // ===== Response Builders =====
@@ -373,13 +440,13 @@ func handleChatLikeRequest(
 	}
 	debugf("client POST body: %s", string(clientBody))
 
-	req, err := parser(clientBody)
+	openAIReq, model, stream, err := parser(clientBody)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
 
-	body, err := json.Marshal(req)
+	body, err := json.Marshal(openAIReq)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusInternalServerError)
 		return
@@ -397,8 +464,8 @@ func handleChatLikeRequest(
 		return
 	}
 
-	if req.Stream {
-		streamLoop(w, req.Model, resp, streamBuilder, r.Context())
+	if stream {
+		streamLoop(w, model, resp, streamBuilder, r.Context())
 		return
 	}
 
@@ -420,7 +487,7 @@ func handleChatLikeRequest(
 	}
 
 	clientResp := respBuilder(openaiResp.Choices[0].Message.Content)
-	clientResp["model"] = req.Model
+	clientResp["model"] = model
 	clientResp["done"] = true
 	debugf("client response: %v", clientResp)
 	json.NewEncoder(w).Encode(clientResp)
