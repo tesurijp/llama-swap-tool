@@ -128,6 +128,17 @@ type Model struct {
 	Digest     string `json:"digest"`
 }
 
+type ShowRequest struct {
+	Name string `json:"name"`
+}
+
+type ShowResponse struct {
+	Modelfile string                 `json:"modelfile"`
+	Template  string                 `json:"template"`
+	System    string                 `json:"system"`
+	Details   map[string]interface{} `json:"details"`
+}
+
 type EmbeddingRequest struct {
 	Model string   `json:"model"`
 	Input interface{} `json:"input"`
@@ -566,6 +577,43 @@ func tagsHandler(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(clientResp)
 }
 
+func showHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+
+	clientBody, err := io.ReadAll(r.Body)
+	if err != nil {
+		sendJSONError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	var showReq ShowRequest
+	if err := json.Unmarshal(clientBody, &showReq); err != nil {
+		sendJSONError(w, err.Error(), http.StatusBadRequest)
+		return
+	}
+
+	// OpenAI /v1/models/{model}
+	modelURL := cfg.UpstreamURL + upstreamModelsEndpoint + "/" + showReq.Name
+	resp, err := httpClient.Get(modelURL)
+	if err == nil {
+		defer resp.Body.Close()
+	}
+
+	// Construct a basic response even if upstream model lookup fails
+	showResp := ShowResponse{
+		Modelfile: fmt.Sprintf("FROM %s", showReq.Name),
+		Template:  "{{ .Prompt }}",
+		Details: map[string]interface{}{
+			"format":            "gguf",
+			"family":            "llama",
+			"parameter_size":    "unknown",
+			"quantization_level": "unknown",
+		},
+	}
+
+	json.NewEncoder(w).Encode(showResp)
+}
+
 func embedHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "application/json")
 
@@ -655,6 +703,7 @@ func main() {
 	mux.HandleFunc("/api/chat", chatHandler)
 	mux.HandleFunc("/api/generate", generateHandler)
 	mux.HandleFunc("/api/tags", tagsHandler)
+	mux.HandleFunc("/api/show", showHandler)
 	mux.HandleFunc("/api/embed", embedHandler)
 	mux.HandleFunc("/api/embeddings", embedHandler)
 	mux.HandleFunc("/api/version", versionHandler)
