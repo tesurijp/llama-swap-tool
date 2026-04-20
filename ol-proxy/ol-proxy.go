@@ -137,6 +137,8 @@ func handleUpstreamError(w http.ResponseWriter, resp *http.Response) bool {
 			debugf("failed to read upstream error body: %v", err)
 			respBody = []byte("")
 		}
+		// Explicitly close here as well for good measure when we return true
+		resp.Body.Close()
 		debugf("upstream error body: %s", string(respBody))
 		http.Error(w, fmt.Sprintf("upstream error: %d %s", resp.StatusCode, strings.TrimSpace(string(respBody))), resp.StatusCode)
 		return true
