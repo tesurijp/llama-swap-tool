@@ -176,6 +176,8 @@ func streamLoop(w http.ResponseWriter, model string, resp *http.Response, builde
 		return
 	}
 
+	var mu sync.Mutex
+
 	reader := bufio.NewReader(resp.Body)
 	ticker := time.NewTicker(heartbeatInterval)
 	defer ticker.Stop()
@@ -191,8 +193,10 @@ func streamLoop(w http.ResponseWriter, model string, resp *http.Response, builde
 		for {
 			select {
 			case <-ticker.C:
+				mu.Lock()
 				w.Write([]byte("\n"))
 				flusher.Flush()
+				mu.Unlock()
 			case <-done:
 				return
 			case <-ctx.Done():
@@ -224,8 +228,10 @@ func streamLoop(w http.ResponseWriter, model string, resp *http.Response, builde
 		if strings.TrimSpace(data) == "[DONE]" {
 			resp := builder("", true)
 			resp["model"] = model
+			mu.Lock()
 			json.NewEncoder(w).Encode(resp)
 			flusher.Flush()
+			mu.Unlock()
 			debugf("stream %s [DONE]", model)
 			break
 		}
@@ -248,8 +254,10 @@ func streamLoop(w http.ResponseWriter, model string, resp *http.Response, builde
 		debugf("stream chunk (%s) content: %s", model, content)
 		resp := builder(content, false)
 		resp["model"] = model
+		mu.Lock()
 		json.NewEncoder(w).Encode(resp)
 		flusher.Flush()
+		mu.Unlock()
 	}
 	debugf("streamLoop exiting for model %s", model)
 }
