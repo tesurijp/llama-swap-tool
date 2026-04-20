@@ -128,6 +128,13 @@ func initHTTPClient() {
 
 // ===== Helper Functions =====
 
+// sendJSONError sends an Ollama-compatible JSON error message
+func sendJSONError(w http.ResponseWriter, message string, code int) {
+	w.Header().Set("Content-Type", "application/json")
+	w.WriteHeader(code)
+	json.NewEncoder(w).Encode(map[string]string{"error": message})
+}
+
 // handleUpstreamError checks if the upstream response indicates an error and handles it
 func handleUpstreamError(w http.ResponseWriter, resp *http.Response) bool {
 	statusCode := resp.StatusCode
@@ -151,10 +158,7 @@ func handleUpstreamError(w http.ResponseWriter, resp *http.Response) bool {
 			errorMessage = openAIError.Error.Message
 		}
 
-		// Return in Ollama compatible format: {"error": "message"}
-		w.Header().Set("Content-Type", "application/json")
-		w.WriteHeader(resp.StatusCode)
-		json.NewEncoder(w).Encode(map[string]string{"error": errorMessage})
+		sendJSONError(w, errorMessage, resp.StatusCode)
 		return true
 	}
 	return false
@@ -383,7 +387,8 @@ func handleChatLikeRequest(
 
 	resp, err := sendUpstreamRequest(endpoint, body)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		debugf("upstream request failed: %v", err)
+		sendJSONError(w, "upstream server unavailable", http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()
@@ -519,7 +524,8 @@ func embedHandler(w http.ResponseWriter, r *http.Request) {
 
 	resp, err := httpClient.Do(httpReq)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusBadGateway)
+		debugf("upstream request failed: %v", err)
+		sendJSONError(w, "upstream server unavailable", http.StatusBadGateway)
 		return
 	}
 	defer resp.Body.Close()
