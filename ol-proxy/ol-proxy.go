@@ -218,7 +218,16 @@ func streamLoop(w http.ResponseWriter, model string, resp *http.Response, builde
 
 		line, err := reader.ReadString('\n')
 		if err != nil {
+			if err != io.EOF {
+				debugf("stream read error: %v", err)
+			}
+			// If we got EOF, check if we should send a final [DONE] if not already sent
 			break
+		}
+
+		line = strings.TrimSpace(line)
+		if line == "" {
+			continue
 		}
 
 		if !strings.HasPrefix(line, "data: ") {
@@ -227,7 +236,7 @@ func streamLoop(w http.ResponseWriter, model string, resp *http.Response, builde
 
 		data := strings.TrimPrefix(line, "data: ")
 
-		if strings.TrimSpace(data) == "[DONE]" {
+		if data == "[DONE]" {
 			resp := builder("", true)
 			resp["model"] = model
 			mu.Lock()
