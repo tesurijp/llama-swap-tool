@@ -503,6 +503,11 @@ func generateHandler(w http.ResponseWriter, r *http.Request) {
 	handleChatLikeRequest(w, r, upstreamChatCompletionsEndpoint, parseGenerateRequest, buildGenerateResponse, buildGenerateStreamChunk)
 }
 
+func versionHandler(w http.ResponseWriter, r *http.Request) {
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]string{"version": "0.1.48"})
+}
+
 func rootHandler(w http.ResponseWriter, r *http.Request) {
 	w.Header().Set("Content-Type", "text/plain")
 	fmt.Fprint(w, "Ollama is running")
@@ -651,6 +656,7 @@ func main() {
 	mux.HandleFunc("/api/generate", generateHandler)
 	mux.HandleFunc("/api/tags", tagsHandler)
 	mux.HandleFunc("/api/embed", embedHandler)
+	mux.HandleFunc("/api/version", versionHandler)
 
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", port),
