@@ -656,6 +656,7 @@ func main() {
 	mux.HandleFunc("/api/generate", generateHandler)
 	mux.HandleFunc("/api/tags", tagsHandler)
 	mux.HandleFunc("/api/embed", embedHandler)
+	mux.HandleFunc("/api/embeddings", embedHandler)
 	mux.HandleFunc("/api/version", versionHandler)
 
 	server := &http.Server{
