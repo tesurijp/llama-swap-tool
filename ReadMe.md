@@ -18,7 +18,9 @@ API キーについては対応していません。
   - `/api/chat`
   - `/api/generate`
   - `/api/tags`
-  - `/api/embed`
+  - `/api/show`
+  - `/api/embed` (および `/api/embeddings`)
+  - `/api/version`
 
   ※ ストリーム対応
 
