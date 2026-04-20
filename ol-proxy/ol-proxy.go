@@ -257,8 +257,8 @@ func streamLoop(w http.ResponseWriter, model string, resp *http.Response, builde
 // ===== Common API Processing =====
 
 // sendUpstreamRequest はアップストリームサーバーにリクエストを送信する共通関数
-func sendUpstreamRequest(reqBody []byte) (*http.Response, error) {
-	httpReq, err := http.NewRequest("POST", cfg.UpstreamURL+upstreamChatCompletionsEndpoint, bytes.NewBuffer(reqBody))
+func sendUpstreamRequest(endpoint string, reqBody []byte) (*http.Response, error) {
+	httpReq, err := http.NewRequest("POST", cfg.UpstreamURL+endpoint, bytes.NewBuffer(reqBody))
 	if err != nil {
 		return nil, err
 	}
@@ -322,6 +322,7 @@ func buildGenerateResponse(content string) map[string]interface{} {
 func handleChatLikeRequest(
 	w http.ResponseWriter,
 	r *http.Request,
+	endpoint string,
 	parser parserFunc,
 	respBuilder respBuilderFunc,
 	streamBuilder streamBuilderFunc,
@@ -347,7 +348,7 @@ func handleChatLikeRequest(
 		return
 	}
 
-	resp, err := sendUpstreamRequest(body)
+	resp, err := sendUpstreamRequest(endpoint, body)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusBadGateway)
 		return
@@ -390,11 +391,11 @@ func handleChatLikeRequest(
 // ===== Endpoint Handlers =====
 
 func chatHandler(w http.ResponseWriter, r *http.Request) {
-	handleChatLikeRequest(w, r, parseChatRequest, buildChatResponse, buildChatStreamChunk)
+	handleChatLikeRequest(w, r, upstreamChatCompletionsEndpoint, parseChatRequest, buildChatResponse, buildChatStreamChunk)
 }
 
 func generateHandler(w http.ResponseWriter, r *http.Request) {
-	handleChatLikeRequest(w, r, parseGenerateRequest, buildGenerateResponse, buildGenerateStreamChunk)
+	handleChatLikeRequest(w, r, upstreamChatCompletionsEndpoint, parseGenerateRequest, buildGenerateResponse, buildGenerateStreamChunk)
 }
 
 func rootHandler(w http.ResponseWriter, r *http.Request) {
