@@ -612,6 +612,34 @@ func embedHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Basic validation of input
+	if embedReq.Input == nil {
+		sendJSONError(w, "input is required", http.StatusBadRequest)
+		return
+	}
+
+	switch v := embedReq.Input.(type) {
+	case string:
+		if v == "" {
+			sendJSONError(w, "input cannot be empty", http.StatusBadRequest)
+			return
+		}
+	case []interface{}:
+		if len(v) == 0 {
+			sendJSONError(w, "input array cannot be empty", http.StatusBadRequest)
+			return
+		}
+		for _, item := range v {
+			if _, ok := item.(string); !ok {
+				sendJSONError(w, "input array must contain only strings", http.StatusBadRequest)
+				return
+			}
+		}
+	default:
+		sendJSONError(w, "input must be a string or an array of strings", http.StatusBadRequest)
+		return
+	}
+
 	// Prepare request for upstream /v1/embeddings
 	// Ollama request format and OpenAI format for 'model' and 'input' are similar.
 	// We can reuse clientBody or re-marshal if we want to be safe.
