@@ -1,18 +1,21 @@
-SUBDIRS := llama-launcher ol-proxy
+BUILD_DIR := $(CURDIR)/build
+GO := go
 
-DEST_DIR := $(CURDIR)/build
+.PHONY: all clean llama-launcher ol-proxy
 
-.PHONY: all clean $(SUBDIRS)
+all: llama-launcher ol-proxy
 
-all: $(SUBDIRS)
+llama-launcher: $(BUILD_DIR)/llama-launcher.exe
 
-$(SUBDIRS):
-	@mkdir -p $(DEST_DIR)
-	$(MAKE) -C $@
-	cp $@/build/* $(DEST_DIR)/ 
+ol-proxy: $(BUILD_DIR)/ol-proxy.exe
+
+$(BUILD_DIR)/llama-launcher.exe: $(wildcard llama-launcher/*.go) llama-launcher/llamaswap.ico
+	@mkdir -p $(BUILD_DIR)
+	cd llama-launcher && GOOS=windows GOARCH=amd64 $(GO) build -ldflags="-H=windowsgui" -o $(BUILD_DIR)/llama-launcher.exe .
+
+$(BUILD_DIR)/ol-proxy.exe: $(wildcard ol-proxy/*.go)
+	@mkdir -p $(BUILD_DIR)
+	cd ol-proxy && GOOS=windows GOARCH=amd64 $(GO) build -o $(BUILD_DIR)/ol-proxy.exe .
 
 clean:
-	@for dir in $(SUBDIRS); do \
-		$(MAKE) -C $$dir clean; \
-	done
-	rm -rf $(DEST_DIR)
+	rm -rf $(BUILD_DIR)
