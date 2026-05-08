@@ -1,6 +1,7 @@
 package main
 
 import (
+	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -59,6 +60,10 @@ func addProxyEnv(cmd *exec.Cmd) {
 func runTargetProgram() error {
 	var err error
 	launcherCfg, _ = loadLauncherConfig()
+
+	if !launcherCfg.LlamaSwap.Enabled && !launcherCfg.OlProxy.Enabled {
+		return fmt.Errorf("both llama-swap and ol-proxy are disabled in config")
+	}
 
 	if launcherCfg.LlamaSwap.Enabled {
 		args := os.Args[1:]
