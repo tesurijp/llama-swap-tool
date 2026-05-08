@@ -1,0 +1,11 @@
+llama_swap:
+  enabled: true
+  path: "llama-swap.exe"
+  useConfigArgs: false # false to use args passed to llama-launcher, true to use args below
+  args: []
+
+ol_proxy:
+  enabled: true
+  path: "ol-proxy.exe"
+  useConfigArgs: true
+  args: ["-d"]

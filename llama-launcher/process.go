@@ -10,15 +10,11 @@ import (
 	"golang.org/x/sys/windows"
 )
 
-const (
-	SwapProgram  = "llama-swap.exe"
-	ProxyProgram = "ol-proxy.exe"
-)
-
 var (
 	swapProcess  *os.Process
 	proxyProcess *os.Process
 	logFile      *os.File
+	launcherCfg  *LauncherConfig
 )
 
 type additionalFunc func(cmd *exec.Cmd)
@@ -26,7 +22,8 @@ type additionalFunc func(cmd *exec.Cmd)
 func startProcess(program string, args []string, addFunc additionalFunc) (*os.Process, error) {
 	programPath, err := filepath.Abs(program)
 	if err != nil {
-		return nil, err
+		// If Absolute path fails, try to use it as is (might be in PATH or relative to CWD)
+		programPath = program
 	}
 
 	cmd := exec.Command(programPath, args...)
@@ -61,14 +58,33 @@ func addProxyEnv(cmd *exec.Cmd) {
 
 func runTargetProgram() error {
 	var err error
-	swapProcess, err = startProcess(SwapProgram, os.Args[1:], addSwapEnv)
-	if err == nil {
-		proxyProcess, err = startProcess(ProxyProgram, []string{"-d"}, addProxyEnv)
+	launcherCfg, _ = loadLauncherConfig()
+
+	if launcherCfg.LlamaSwap.Enabled {
+		args := os.Args[1:]
+		if launcherCfg.LlamaSwap.UseConfigArgs {
+			args = launcherCfg.LlamaSwap.Args
+		}
+		swapProcess, err = startProcess(launcherCfg.LlamaSwap.Path, args, addSwapEnv)
 		if err != nil {
-			terminateProcess(&swapProcess)
+			return err
 		}
 	}
-	return err
+
+	if launcherCfg.OlProxy.Enabled {
+		args := os.Args[1:]
+		if launcherCfg.OlProxy.UseConfigArgs {
+			args = launcherCfg.OlProxy.Args
+		}
+		proxyProcess, err = startProcess(launcherCfg.OlProxy.Path, args, addProxyEnv)
+		if err != nil {
+			if swapProcess != nil {
+				terminateProcess(&swapProcess)
+			}
+			return err
+		}
+	}
+	return nil
 }
 
 func terminateProcess(p **os.Process) {

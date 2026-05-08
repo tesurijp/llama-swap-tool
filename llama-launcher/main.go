@@ -15,12 +15,19 @@ var (
 )
 
 func main() {
+	launcherCfg, _ = loadLauncherConfig()
+
 	chkflg := flag.NewFlagSet("llamaswap-launcher", flag.ContinueOnError)
 	listenStr := chkflg.String("listen", "", "listen ip/port")
 	certFile := chkflg.String("tls-cert-file", "", "TLS certificate file")
 	keyFile := chkflg.String("tls-key-file", "", "TLS key file")
 	configFile := chkflg.String("config", "", "config file path")
-	chkflg.Parse(os.Args[1:])
+
+	effectiveArgs := os.Args[1:]
+	if launcherCfg.LlamaSwap.Enabled && launcherCfg.LlamaSwap.UseConfigArgs {
+		effectiveArgs = launcherCfg.LlamaSwap.Args
+	}
+	chkflg.Parse(effectiveArgs)
 
 	configPath = *configFile
 	if configPath == "" {

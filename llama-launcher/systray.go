@@ -22,7 +22,15 @@ func onReady() {
 
 	mOpenWeb := systray.AddMenuItem("Open Web UI", "Open llama-swap playground")
 	mOpenLog := systray.AddMenuItem("Open log file", "Open ol-proxy log")
+
 	mOpenConfig := systray.AddMenuItem("Open config file", "Open config file")
+	if !launcherCfg.LlamaSwap.Enabled {
+		mOpenWeb.Disable()
+		mOpenConfig.Disable()
+	}
+	if !launcherCfg.OlProxy.Enabled {
+		mOpenLog.Disable()
+	}
 	mRestart := systray.AddMenuItem("Restart", "Restart llama-swap & proxy")
 	mTerminateChild := systray.AddMenuItem("Exit", "Ext")
 
@@ -32,7 +40,9 @@ func onReady() {
 			case <-mOpenWeb.ClickedCh:
 				open(targetUrl)
 			case <-mOpenLog.ClickedCh:
-				open(logFile.Name())
+				if logFile != nil {
+					open(logFile.Name())
+				}
 			case <-mOpenConfig.ClickedCh:
 				open(configPath)
 			case <-mRestart.ClickedCh:

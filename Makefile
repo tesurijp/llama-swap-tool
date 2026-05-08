@@ -9,9 +9,10 @@ llama-launcher: $(BUILD_DIR)/llama-launcher.exe
 
 ol-proxy: $(BUILD_DIR)/ol-proxy.exe
 
-$(BUILD_DIR)/llama-launcher.exe: $(wildcard llama-launcher/*.go) llama-launcher/llamaswap.ico
+$(BUILD_DIR)/llama-launcher.exe: $(wildcard llama-launcher/*.go) llama-launcher/llamaswap.ico llama-launcher/llama-launcher.yaml.template
 	@mkdir -p $(BUILD_DIR)
 	cd llama-launcher && GOOS=windows GOARCH=amd64 $(GO) build -ldflags="-H=windowsgui" -o $(BUILD_DIR)/llama-launcher.exe .
+	cp llama-launcher/llama-launcher.yaml.template $(BUILD_DIR)/llama-launcher.yaml
 
 $(BUILD_DIR)/ol-proxy.exe: $(wildcard ol-proxy/*.go)
 	@mkdir -p $(BUILD_DIR)

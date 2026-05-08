@@ -35,7 +35,8 @@ API キーについては対応していません。
 
 ### llama-launcher (ランチャー)
 
-`llama-launcher` は、`llama-swap.exe` と `ol-proxy.exe` をバックグラウンドで同時に起動し、システムトレイから操作できるようにするランチャーです。
+`llama-launcher` は、`llama-swap.exe` と `ol-proxy.exe` をバックグラウンドで管理し、システムトレイから操作できるようにするランチャーです。
+`llama-launcher.yaml` を使用して、各プロセスの起動可否、パス、引数の設定を行うことができます。
 
 - システムトレイ操作:
   - Open Web UI: `llama-swap` のプレイグラウンドをブラウザで開きます。
@@ -44,23 +45,44 @@ API キーについては対応していません。
   - Restart: `llama-swap` と `ol-proxy` を再起動します。
   - Exit: プログラムを終了します（子プロセスも終了します）。
 
+※ 設定ファイルで無効化されているプロセスのメニュー項目（Web UIやログ）は、グレーアウトされ選択できなくなります。
+
+#### 設定ファイル (llama-launcher.yaml)
+
+`llama-launcher.exe` と同じディレクトリに `llama-launcher.yaml` を配置することで、以下の設定が可能です。
+
+```yaml
+llama_swap:
+  enabled: true          # 起動するかどうか
+  path: "llama-swap.exe" # 実行ファイルのパス
+  useConfigArgs: false   # true: 下記 args を使用 / false: ランチャーに渡された引数をそのまま使用
+  args: []               # useConfigArgs が true の場合に使用される引数リスト
+
+ol_proxy:
+  enabled: true
+  path: "ol-proxy.exe"
+  useConfigArgs: true
+  args: ["-d"]
+```
+
 #### 引数について
 
-実行引数は全てそのままの形で `llama-swap` に引き渡します。以下の引数が与えられている場合は内容を確認します。
+`llama-launcher` に渡された引数は、設定ファイルの `useConfigArgs` が `false` の場合に `llama-swap` に引き渡されます。
+また、ランチャーは以下の引数を確認して動作を調整します。
 
-- ol-proxyの -upstream に与えるURLを特定するため。
+- `ol-proxy` の `-upstream` に与えるURLを特定するため（`llama-swap` の待ち受け先を把握するため）:
   - `-listen`
   - `-tls-cert-file`
   - `-tls-key-file`
-- `llama-swap`の configファイルのパスを特定するため。
+- システムトレイから開く `llama-swap` の config ファイルのパスを特定するため:
   - `-config`  
 
 ## 実行方法
 
-- `llama-swap` をインストールしたフォルダに、`ol-proxy.exe` および、`llama-launcher.exe` をコピー
+- `llama-swap` をインストールしたフォルダに、`ol-proxy.exe`、`llama-launcher.exe`、および `llama-launcher.yaml` をコピー
 - `llama-launcher.exe` を起動
 
-※ `llama-swap` に与えたい引数は、`llama-launcher` の引数に指定します。
+※ `llama-swap` に与えたい引数は、`llama-launcher` の引数に指定するか、`llama-launcher.yaml` の `args` に記載します。
 
 ## ビルド方法
 
